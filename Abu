@@ -1,0 +1,597 @@
+-- RAT HUB - VERSÃO HUMANIZADA (500 IDEIAS)
+-- by Jao
+
+local player = game.Players.LocalPlayer
+local ts = game:GetService("TweenService")
+local rs = game:GetService("RunService")
+local uis = game:GetService("UserInputService")
+
+-- ==================== CORES ====================
+local corRoxo = Color3.fromRGB(138, 75, 255)
+local corRoxoClaro = Color3.fromRGB(180, 130, 255)
+local corRoxoEscuro = Color3.fromRGB(60, 30, 100)
+local corRoxoNeon = Color3.fromRGB(200, 100, 255)
+local corVerde = Color3.fromRGB(50, 200, 50)
+local corVermelho = Color3.fromRGB(200, 50, 50)
+local corAmarelo = Color3.fromRGB(255, 200, 0)
+local corBranco = Color3.fromRGB(240, 240, 255)
+local corCinza = Color3.fromRGB(150, 150, 180)
+local corCinzaClaro = Color3.fromRGB(200, 200, 220)
+local corFundo1 = Color3.fromRGB(10, 5, 20)
+local corFundo2 = Color3.fromRGB(30, 10, 50)
+local corFundo3 = Color3.fromRGB(20, 5, 40)
+
+-- ==================== SONS ====================
+local somSalvar = Instance.new("Sound")
+somSalvar.SoundId = "rbxassetid://91203790950646"
+somSalvar.Volume = 0.3
+somSalvar.Parent = player
+
+local somTP = Instance.new("Sound")
+somTP.SoundId = "rbxassetid://91203854328530"
+somTP.Volume = 0.2
+somTP.Parent = player
+
+local somClique = Instance.new("Sound")
+somClique.SoundId = "rbxassetid://91203790950646"
+somClique.Volume = 0.15
+somClique.Parent = player
+
+-- ==================== VARIÁVEIS ====================
+local posSalva = nil
+local marcador = nil
+local tpAtivo = false
+local tpCooldown = false
+local tpCooldownTime = 0.5
+local modoDedo = false
+local dedoConn = nil
+local minimizado = false
+local particles = {}
+
+-- ==================== VERIFICAR CHÃO ====================
+local function temChao(pos)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.FilterDescendantsInstances = {player.Character}
+    local rayResult = workspace:Raycast(pos + Vector3.new(0, 2, 0), Vector3.new(0, -10, 0), rayParams)
+    if rayResult then return true end
+    return false
+end
+
+-- ==================== CRIAR PLATAFORMA ====================
+local function criarPlataforma(pos, duracao)
+    duracao = duracao or 4
+    local plat = Instance.new("Part")
+    plat.Name = "RatHub_Plataforma"
+    plat.Shape = Enum.PartType.Block
+    plat.Size = Vector3.new(5, 0.5, 5)
+    plat.Position = pos - Vector3.new(0, 1, 0)
+    plat.Anchored = true
+    plat.CanCollide = true
+    plat.Material = Enum.Material.Neon
+    plat.Color = corAmarelo
+    plat.Transparency = 0.2
+    plat.Parent = workspace
+    local light = Instance.new("PointLight", plat)
+    light.Range = 5
+    light.Color = corAmarelo
+    task.delay(duracao, function()
+        if plat and plat.Parent then plat:Destroy() end
+    end)
+    return plat
+end
+
+-- ==================== UI PRINCIPAL ====================
+local gui = Instance.new("ScreenGui")
+gui.Name = "RatHub"
+gui.ResetOnSpawn = false
+gui.Parent = game:GetService("CoreGui")
+
+pcall(function()
+    if not gui.Parent then
+        gui.Parent = player:WaitForChild("PlayerGui")
+    end
+end)
+
+-- ==================== FRAME PRINCIPAL ====================
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 180, 0, 250)
+main.Position = UDim2.new(0.5, -90, 0.5, -125)
+main.BackgroundColor3 = corFundo1
+main.BackgroundTransparency = 0.05
+main.Active = true
+main.Draggable = true
+main.Parent = gui
+main.ClipsDescendants = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 20)
+
+-- ==================== GRADIENTE ====================
+local fundoGrad = Instance.new("UIGradient", main)
+fundoGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, corFundo1),
+    ColorSequenceKeypoint.new(0.3, corFundo3),
+    ColorSequenceKeypoint.new(0.6, corFundo2),
+    ColorSequenceKeypoint.new(1, corFundo1)
+})
+
+-- ==================== BORDA NEON ====================
+local borda = Instance.new("UIStroke", main)
+borda.Thickness = 2.5
+borda.Color = corRoxo
+borda.Transparency = 0.2
+
+local bordaGrad = Instance.new("UIGradient", borda)
+bordaGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, corRoxo),
+    ColorSequenceKeypoint.new(0.3, corRoxoClaro),
+    ColorSequenceKeypoint.new(0.6, corRoxoNeon),
+    ColorSequenceKeypoint.new(1, corRoxo)
+})
+
+-- ==================== PARTÍCULAS ====================
+for i = 1, 30 do
+    local particle = Instance.new("Frame", main)
+    particle.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
+    particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+    particle.BackgroundColor3 = corRoxo
+    particle.BackgroundTransparency = 0.7
+    particle.BorderSizePixel = 0
+    Instance.new("UICorner", particle).CornerRadius = UDim.new(1, 0)
+    
+    local data = {
+        frame = particle,
+        speedX = (math.random(-2, 2)) / 1000,
+        speedY = (math.random(-2, 2)) / 1000
+    }
+    table.insert(particles, data)
+    
+    task.spawn(function()
+        while particle.Parent do
+            local pos = particle.Position
+            local newX = pos.X.Scale + data.speedX
+            local newY = pos.Y.Scale + data.speedY
+            if newX > 1 then newX = 0 end
+            if newX < 0 then newX = 1 end
+            if newY > 1 then newY = 0 end
+            if newY < 0 then newY = 1 end
+            particle.Position = UDim2.new(newX, 0, newY, 0)
+            task.wait(0.03)
+        end
+    end)
+end
+
+-- ==================== CABEÇALHO ====================
+local header = Instance.new("Frame", main)
+header.Size = UDim2.new(1, 0, 0, 45)
+header.BackgroundColor3 = corRoxoEscuro
+header.BackgroundTransparency = 0.2
+Instance.new("UICorner", header).CornerRadius = UDim.new(0, 20, 0, 0)
+
+-- TÍTULO
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.new(1, -50, 0.6, 0)
+title.Position = UDim2.new(0, 5, 0, 2)
+title.BackgroundTransparency = 1
+title.Text = "🐀 RAT HUB"
+title.TextColor3 = corBranco
+title.TextSize = 17
+title.Font = Enum.Font.GothamBold
+title.TextYAlignment = Enum.TextYAlignment.Bottom
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- SUBTÍTULO
+local subTitle = Instance.new("TextLabel", header)
+subTitle.Size = UDim2.new(1, -50, 0.4, 0)
+subTitle.Position = UDim2.new(0, 5, 0, 24)
+subTitle.BackgroundTransparency = 1
+subTitle.Text = "Sistema de Teleporte"
+subTitle.TextColor3 = corCinza
+subTitle.TextSize = 9
+subTitle.Font = Enum.Font.Gotham
+subTitle.TextXAlignment = Enum.TextXAlignment.Left
+subTitle.TextYAlignment = Enum.TextYAlignment.Top
+
+-- ==================== BOTÃO MINIMIZAR ====================
+local minimizarBtn = Instance.new("TextButton", header)
+minimizarBtn.Size = UDim2.new(0, 26, 0, 26)
+minimizarBtn.Position = UDim2.new(1, -32, 0.5, -13)
+minimizarBtn.BackgroundTransparency = 1
+minimizarBtn.Text = "−"
+minimizarBtn.TextColor3 = corBranco
+minimizarBtn.TextSize = 20
+minimizarBtn.Font = Enum.Font.GothamBold
+
+minimizarBtn.MouseEnter:Connect(function()
+    ts:Create(minimizarBtn, TweenInfo.new(0.1), {
+        TextColor3 = corRoxoClaro,
+        Size = UDim2.new(0, 28, 0, 28)
+    }):Play()
+end)
+
+minimizarBtn.MouseLeave:Connect(function()
+    ts:Create(minimizarBtn, TweenInfo.new(0.1), {
+        TextColor3 = corBranco,
+        Size = UDim2.new(0, 26, 0, 26)
+    }):Play()
+end)
+
+minimizarBtn.MouseButton1Click:Connect(function()
+    minimizado = not minimizado
+    minimizarBtn.Text = minimizado and "+" or "−"
+    
+    if minimizado then
+        ts:Create(main, TweenInfo.new(0.2), {
+            Size = UDim2.new(0, 180, 0, 45)
+        }):Play()
+    else
+        ts:Create(main, TweenInfo.new(0.2), {
+            Size = UDim2.new(0, 180, 0, 250)
+        }):Play()
+    end
+end)
+
+-- ==================== LINHA DECORATIVA ====================
+local linha = Instance.new("Frame", main)
+linha.Size = UDim2.new(0.8, 0, 0, 1.5)
+linha.Position = UDim2.new(0.1, 0, 0, 52)
+linha.BackgroundColor3 = corRoxoClaro
+linha.BackgroundTransparency = 0.3
+
+local linhaGrad = Instance.new("UIGradient", linha)
+linhaGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, corRoxoEscuro),
+    ColorSequenceKeypoint.new(0.5, corRoxoClaro),
+    ColorSequenceKeypoint.new(1, corRoxoEscuro)
+})
+
+-- ==================== BOTÃO SALVAR ====================
+local saveBtn = Instance.new("TextButton", main)
+saveBtn.Size = UDim2.new(0.8, 0, 0, 34)
+saveBtn.Position = UDim2.new(0.1, 0, 0, 62)
+saveBtn.BackgroundColor3 = corRoxo
+saveBtn.BackgroundTransparency = 0.15
+saveBtn.Text = "📍 SALVAR"
+saveBtn.TextColor3 = corBranco
+saveBtn.TextSize = 12
+saveBtn.Font = Enum.Font.GothamBold
+saveBtn.Parent = main
+Instance.new("UICorner", saveBtn).CornerRadius = UDim.new(0, 17)
+
+local saveGlow = Instance.new("UIStroke", saveBtn)
+saveGlow.Thickness = 1
+saveGlow.Color = corRoxoClaro
+saveGlow.Transparency = 0.5
+
+saveBtn.MouseEnter:Connect(function()
+    somClique:Play()
+    ts:Create(saveBtn, TweenInfo.new(0.1), {
+        BackgroundTransparency = 0.05,
+        Size = UDim2.new(0.85, 0, 0, 37)
+    }):Play()
+    ts:Create(saveGlow, TweenInfo.new(0.1), {Transparency = 0.1}):Play()
+end)
+
+saveBtn.MouseLeave:Connect(function()
+    ts:Create(saveBtn, TweenInfo.new(0.1), {
+        BackgroundTransparency = 0.15,
+        Size = UDim2.new(0.8, 0, 0, 34)
+    }):Play()
+    ts:Create(saveGlow, TweenInfo.new(0.1), {Transparency = 0.5}):Play()
+end)
+
+-- ==================== BOTÃO TELEPORTAR ====================
+local tpBtn = Instance.new("TextButton", main)
+tpBtn.Size = UDim2.new(0.8, 0, 0, 34)
+tpBtn.Position = UDim2.new(0.1, 0, 0, 104)
+tpBtn.BackgroundColor3 = corRoxoEscuro
+tpBtn.BackgroundTransparency = 0.3
+tpBtn.Text = "🌀 TELEPORTAR"
+tpBtn.TextColor3 = corBranco
+tpBtn.TextSize = 12
+tpBtn.Font = Enum.Font.GothamBold
+tpBtn.Visible = false
+tpBtn.Parent = main
+Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 17)
+
+local tpGlow = Instance.new("UIStroke", tpBtn)
+tpGlow.Thickness = 1
+tpGlow.Color = corRoxoClaro
+tpGlow.Transparency = 0.5
+
+tpBtn.MouseEnter:Connect(function()
+    if tpBtn.Visible then
+        somClique:Play()
+        ts:Create(tpBtn, TweenInfo.new(0.1), {
+            BackgroundTransparency = 0.15,
+            Size = UDim2.new(0.85, 0, 0, 37)
+        }):Play()
+        ts:Create(tpGlow, TweenInfo.new(0.1), {Transparency = 0.1}):Play()
+    end
+end)
+
+tpBtn.MouseLeave:Connect(function()
+    if tpBtn.Visible then
+        ts:Create(tpBtn, TweenInfo.new(0.1), {
+            BackgroundTransparency = 0.3,
+            Size = UDim2.new(0.8, 0, 0, 34)
+        }):Play()
+        ts:Create(tpGlow, TweenInfo.new(0.1), {Transparency = 0.5}):Play()
+    end
+end)
+
+-- ==================== STATUS ====================
+local status = Instance.new("TextLabel", main)
+status.Size = UDim2.new(0.9, 0, 0, 20)
+status.Position = UDim2.new(0.05, 0, 0, 152)
+status.BackgroundTransparency = 1
+status.Text = "⚪ Nenhum TP"
+status.TextColor3 = corCinza
+status.TextSize = 10
+status.Font = Enum.Font.Gotham
+status.TextXAlignment = Enum.TextXAlignment.Center
+status.Parent = main
+
+-- ==================== COOLDOWN ====================
+local cooldownText = Instance.new("TextLabel", main)
+cooldownText.Size = UDim2.new(0.9, 0, 0, 16)
+cooldownText.Position = UDim2.new(0.05, 0, 0, 174)
+cooldownText.BackgroundTransparency = 1
+cooldownText.Text = ""
+cooldownText.TextColor3 = corRoxoClaro
+cooldownText.TextSize = 9
+cooldownText.Font = Enum.Font.Gotham
+cooldownText.TextXAlignment = Enum.TextXAlignment.Center
+cooldownText.Parent = main
+
+-- ==================== BARRA DE PROGRESSO ====================
+local barraBg = Instance.new("Frame", main)
+barraBg.Size = UDim2.new(0.8, 0, 0, 3)
+barraBg.Position = UDim2.new(0.1, 0, 0, 200)
+barraBg.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+barraBg.BackgroundTransparency = 0.5
+Instance.new("UICorner", barraBg).CornerRadius = UDim.new(1, 0)
+barraBg.Parent = main
+
+local barra = Instance.new("Frame", barraBg)
+barra.Size = UDim2.new(0, 0, 1, 0)
+barra.BackgroundColor3 = corRoxo
+barra.BackgroundTransparency = 0.5
+Instance.new("UICorner", barra).CornerRadius = UDim.new(1, 0)
+
+-- ==================== INDICADOR DE STATUS (luzinha) ====================
+local luz = Instance.new("Frame", main)
+luz.Size = UDim2.new(0, 8, 0, 8)
+luz.Position = UDim2.new(0.05, 0, 0, 152)
+luz.BackgroundColor3 = corVermelho
+luz.BackgroundTransparency = 0.3
+luz.BorderSizePixel = 0
+Instance.new("UICorner", luz).CornerRadius = UDim.new(1, 0)
+
+-- ==================== NOTIFICAÇÃO ====================
+local notificacao = Instance.new("Frame")
+notificacao.Size = UDim2.new(0, 280, 0, 110)
+notificacao.Position = UDim2.new(0.5, -140, 0, -120)
+notificacao.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+notificacao.BackgroundTransparency = 0.1
+notificacao.BorderSizePixel = 0
+notificacao.Visible = false
+notificacao.Parent = gui
+notificacao.ClipsDescendants = true
+
+Instance.new("UICorner", notificacao).CornerRadius = UDim.new(0, 25)
+local notifStroke = Instance.new("UIStroke", notificacao)
+notifStroke.Thickness = 1.5
+notifStroke.Color = corRoxo
+notifStroke.Transparency = 0.3
+
+local notifIcon = Instance.new("TextLabel", notificacao)
+notifIcon.Size = UDim2.new(0, 35, 0, 35)
+notifIcon.Position = UDim2.new(0, 15, 0.3, -17)
+notifIcon.BackgroundTransparency = 1
+notifIcon.Text = "📍"
+notifIcon.TextSize = 28
+notifIcon.TextColor3 = corRoxoClaro
+notifIcon.Font = Enum.Font.GothamBold
+
+local notifTitle = Instance.new("TextLabel", notificacao)
+notifTitle.Size = UDim2.new(1, -65, 0, 22)
+notifTitle.Position = UDim2.new(0, 60, 0, 12)
+notifTitle.BackgroundTransparency = 1
+notifTitle.Text = "Marcar Posição"
+notifTitle.TextColor3 = corBranco
+notifTitle.TextSize = 15
+notifTitle.Font = Enum.Font.GothamBold
+notifTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local notifSub = Instance.new("TextLabel", notificacao)
+notifSub.Size = UDim2.new(1, -65, 0, 18)
+notifSub.Position = UDim2.new(0, 60, 0, 35)
+notifSub.BackgroundTransparency = 1
+notifSub.Text = "Escolha como marcar"
+notifSub.TextColor3 = corCinza
+notifSub.TextSize = 11
+notifSub.Font = Enum.Font.Gotham
+notifSub.TextXAlignment = Enum.TextXAlignment.Left
+
+-- ==================== BOTÕES DA NOTIFICAÇÃO ====================
+local marcarAgoraBtn = Instance.new("TextButton", notificacao)
+marcarAgoraBtn.Size = UDim2.new(0, 120, 0, 35)
+marcarAgoraBtn.Position = UDim2.new(0.05, 0, 1, -42)
+marcarAgoraBtn.BackgroundColor3 = corVerde
+marcarAgoraBtn.BackgroundTransparency = 0.15
+marcarAgoraBtn.Text = "AGORA"
+marcarAgoraBtn.TextColor3 = corBranco
+marcarAgoraBtn.TextSize = 13
+marcarAgoraBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", marcarAgoraBtn).CornerRadius = UDim.new(0, 17)
+
+local marcarDedoBtn = Instance.new("TextButton", notificacao)
+marcarDedoBtn.Size = UDim2.new(0, 120, 0, 35)
+marcarDedoBtn.Position = UDim2.new(0.52, 0, 1, -42)
+marcarDedoBtn.BackgroundColor3 = corAmarelo
+marcarDedoBtn.BackgroundTransparency = 0.15
+marcarDedoBtn.Text = "A DEDO"
+marcarDedoBtn.TextColor3 = corBranco
+marcarDedoBtn.TextSize = 13
+marcarDedoBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", marcarDedoBtn).CornerRadius = UDim.new(0, 17)
+
+-- ==================== FUNÇÕES ====================
+local function mostrarNotificacao()
+    notificacao.Visible = true
+    notificacao.Position = UDim2.new(0.5, -140, 0, -120)
+    notificacao.BackgroundTransparency = 1
+    ts:Create(notificacao, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
+        Position = UDim2.new(0.5, -140, 0, 30),
+        BackgroundTransparency = 0.1
+    }):Play()
+end
+
+local function esconderNotificacao()
+    ts:Create(notificacao, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
+        Position = UDim2.new(0.5, -140, 0, -120),
+        BackgroundTransparency = 1
+    }):Play()
+    task.delay(0.2, function()
+        notificacao.Visible = false
+    end)
+end
+
+-- ==================== MARCAR POSIÇÃO ====================
+local function marcarPosicao(pos)
+    if not pos then return end
+    posSalva = pos
+    
+    if marcador then marcador:Destroy() end
+    marcador = Instance.new("Part")
+    marcador.Name = "RatHub_Marker"
+    marcador.Shape = Enum.PartType.Ball
+    marcador.Size = Vector3.new(1.8, 1.8, 1.8)
+    marcador.Position = posSalva
+    marcador.Anchored = true
+    marcador.CanCollide = false
+    marcador.Material = Enum.Material.Neon
+    marcador.Color = corRoxo
+    marcador.Transparency = 0.2
+    marcador.Parent = workspace
+    
+    local light = Instance.new("PointLight", marcador)
+    light.Range = 7
+    light.Color = corRoxo
+    
+    local bill = Instance.new("BillboardGui", marcador)
+    bill.Size = UDim2.new(0, 70, 0, 22)
+    bill.StudsOffset = Vector3.new(0, 1.8, 0)
+    bill.AlwaysOnTop = true
+    local txt = Instance.new("TextLabel", bill)
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.Text = "📍 TP"
+    txt.TextColor3 = corBranco
+    txt.TextSize = 11
+    txt.Font = Enum.Font.GothamBold
+    
+    somSalvar:Play()
+    tpBtn.Visible = true
+    tpBtn.BackgroundColor3 = corRoxo
+    status.Text = "✅ Salvo!"
+    status.TextColor3 = corVerde
+    luz.BackgroundColor3 = corVerde
+    saveBtn.BackgroundColor3 = corVerde
+    saveBtn.BackgroundTransparency = 0.05
+    
+    task.delay(0.3, function()
+        saveBtn.BackgroundColor3 = corRoxo
+        saveBtn.BackgroundTransparency = 0.15
+        status.Text = "📍 TP pronto"
+        status.TextColor3 = corCinza
+        luz.BackgroundColor3 = corRoxo
+    end)
+    
+    barra.Size = UDim2.new(1, 0, 1, 0)
+    task.delay(2, function()
+        ts:Create(barra, TweenInfo.new(0.5), {Size = UDim2.new(0, 0, 1, 0)}):Play()
+    end)
+end
+
+-- ==================== MARCAR AGORA ====================
+local function marcarAgora()
+    esconderNotificacao()
+    local char = player.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            marcarPosicao(hrp.Position)
+        end
+    end
+end
+
+-- ==================== MARCAR A DEDO ====================
+local function ativarModoDedo()
+    esconderNotificacao()
+    modoDedo = true
+    status.Text = "🖐️ Toque no chão"
+    status.TextColor3 = corAmarelo
+    luz.BackgroundColor3 = corAmarelo
+    
+    if dedoConn then dedoConn:Disconnect() end
+    
+    dedoConn = uis.InputBegan:Connect(function(input)
+        if not modoDedo then return end
+        
+        local pos = nil
+        if input.UserInputType == Enum.UserInputType.Touch then
+            local touchPos = input.Position
+            local ray = workspace.CurrentCamera:ViewportPointToRay(touchPos.X, touchPos.Y)
+            local params = RaycastParams.new()
+            params.FilterType = Enum.RaycastFilterType.Blacklist
+            params.FilterDescendantsInstances = {player.Character}
+            local result = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
+            if result then
+                pos = result.Position
+            end
+        elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mouse = player:GetMouse()
+            if mouse and mouse.Target and mouse.Target:IsA("BasePart") then
+                pos = mouse.Target.Position
+            end
+        end
+        
+        if pos then
+            marcarPosicao(pos)
+            modoDedo = false
+            if dedoConn then
+                dedoConn:Disconnect()
+                dedoConn = nil
+            end
+            status.Text = "📍 TP pronto"
+            status.TextColor3 = corCinza
+            luz.BackgroundColor3 = corRoxo
+        end
+    end)
+    
+    task.delay(10, function()
+        if modoDedo then
+            modoDedo = false
+            if dedoConn then
+                dedoConn:Disconnect()
+                dedoConn = nil
+            end
+            status.Text = "⏰ Expirado"
+            status.TextColor3 = corVermelho
+            luz.BackgroundColor3 = corVermelho
+            task.delay(1, function()
+                status.Text = "📍 TP pronto"
+                status.TextColor3 = corCinza
+                luz.BackgroundColor3 = corRoxo
+            end)
+        end
+    end)
+end
+
+-- ==================== TP GRADUAL ====================
+local function teleportarGradual(alvo)
+    if tpAtivo then return end
+    if tpCooldown then return end
+    
+    if not temChao(alvo) and alvo.Y < 0 then
