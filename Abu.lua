@@ -5,6 +5,7 @@ local player = game.Players.LocalPlayer
 local ts = game:GetService("TweenService")
 local rs = game:GetService("RunService")
 local uis = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
 
 -- ==================== CORES ====================
 local corRoxo = Color3.fromRGB(138, 75, 255)
@@ -25,17 +26,22 @@ local corFundo3 = Color3.fromRGB(20, 5, 40)
 local somSalvar = Instance.new("Sound")
 somSalvar.SoundId = "rbxassetid://91203790950646"
 somSalvar.Volume = 0.3
-somSalvar.Parent = player
+somSalvar.Parent = SoundService
 
 local somTP = Instance.new("Sound")
 somTP.SoundId = "rbxassetid://91203854328530"
 somTP.Volume = 0.2
-somTP.Parent = player
+somTP.Parent = SoundService
 
 local somClique = Instance.new("Sound")
 somClique.SoundId = "rbxassetid://91203790950646"
 somClique.Volume = 0.15
-somClique.Parent = player
+somClique.Parent = SoundService
+
+local somWhoosh = Instance.new("Sound")
+somWhoosh.SoundId = "rbxassetid://91203854328530"
+somWhoosh.Volume = 0.25
+somWhoosh.Parent = SoundService
 
 -- ==================== VARIÁVEIS ====================
 local posSalva = nil
@@ -50,6 +56,7 @@ local particles = {}
 
 -- ==================== VERIFICAR CHÃO ====================
 local function temChao(pos)
+    if not pos then return false end
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Blacklist
     rayParams.FilterDescendantsInstances = {player.Character}
@@ -81,19 +88,89 @@ local function criarPlataforma(pos, duracao)
     return plat
 end
 
+-- ==================== EFEITOS (PARTÍCULAS/ANIMAÇÕES) ====================
+local function criarParticulas(pos)
+    for i = 1, 30 do
+        local p = Instance.new("Part")
+        p.Size = Vector3.new(0.3, 0.3, 0.3)
+        p.Position = pos + Vector3.new(math.random(-6,6), math.random(-6,6), math.random(-6,6))
+        p.Anchored = true
+        p.CanCollide = false
+        p.Material = Enum.Material.Neon
+        p.Color = corRoxo
+        p.Transparency = 0.3
+        p.Parent = workspace
+        game:GetService("Debris"):AddItem(p, 0.5)
+    end
+end
+
+local function criarRastro(pos1, pos2)
+    for i = 1, 15 do
+        local p = Instance.new("Part")
+        local progresso = i / 15
+        p.Size = Vector3.new(0.2, 0.2, 0.2)
+        p.Position = pos1:Lerp(pos2, progresso)
+        p.Anchored = true
+        p.CanCollide = false
+        p.Material = Enum.Material.Neon
+        p.Color = corRoxoClaro
+        p.Transparency = 0.5
+        p.Parent = workspace
+        game:GetService("Debris"):AddItem(p, 0.3)
+    end
+end
+
+local function criarAnel(pos)
+    local ring = Instance.new("Part")
+    ring.Shape = Enum.PartType.Cylinder
+    ring.Size = Vector3.new(4, 0.1, 4)
+    ring.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(90), 0)
+    ring.Anchored = true
+    ring.CanCollide = false
+    ring.Material = Enum.Material.Neon
+    ring.Color = corRoxo
+    ring.Transparency = 0.3
+    ring.Parent = workspace
+    game:GetService("Debris"):AddItem(ring, 0.5)
+end
+
+local function criarEstrela(pos)
+    for i = 1, 8 do
+        local angle = (i / 8) * math.pi * 2
+        local p = Instance.new("Part")
+        p.Size = Vector3.new(0.3, 0.1, 0.3)
+        p.Position = pos + Vector3.new(math.cos(angle) * 2, 0.1, math.sin(angle) * 2)
+        p.Anchored = true
+        p.CanCollide = false
+        p.Material = Enum.Material.Neon
+        p.Color = corRoxo
+        p.Transparency = 0.3
+        p.Parent = workspace
+        game:GetService("Debris"):AddItem(p, 0.5)
+    end
+end
+
+local function distorcer()
+    local blur = Instance.new("BlurEffect", game:GetService("Lighting"))
+    blur.Size = 0
+    ts:Create(blur, TweenInfo.new(0.1), {Size = 15}):Play()
+    task.delay(0.2, function()
+        ts:Create(blur, TweenInfo.new(0.1), {Size = 0}):Play()
+        task.delay(0.2, function() blur:Destroy() end)
+    end)
+end
+
 -- ==================== UI PRINCIPAL ====================
 local gui = Instance.new("ScreenGui")
 gui.Name = "RatHub"
 gui.ResetOnSpawn = false
-gui.Parent = game:GetService("CoreGui")
+-- tentativa de colocar no CoreGui; fallback para PlayerGui
+pcall(function() gui.Parent = game:GetService("CoreGui") end)
+if not gui.Parent then
+    gui.Parent = player:WaitForChild("PlayerGui")
+end
 
-pcall(function()
-    if not gui.Parent then
-        gui.Parent = player:WaitForChild("PlayerGui")
-    end
-end)
-
--- ==================== FRAME PRINCIPAL ====================
+-- FRAME PRINCIPAL
 local main = Instance.new("Frame")
 main.Size = UDim2.new(0, 180, 0, 250)
 main.Position = UDim2.new(0.5, -90, 0.5, -125)
@@ -105,7 +182,7 @@ main.Parent = gui
 main.ClipsDescendants = true
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 20)
 
--- ==================== GRADIENTE ====================
+-- GRADIENTE
 local fundoGrad = Instance.new("UIGradient", main)
 fundoGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, corFundo1),
@@ -114,12 +191,11 @@ fundoGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(1, corFundo1)
 })
 
--- ==================== BORDA NEON ====================
+-- BORDA NEON
 local borda = Instance.new("UIStroke", main)
 borda.Thickness = 2.5
 borda.Color = corRoxo
 borda.Transparency = 0.2
-
 local bordaGrad = Instance.new("UIGradient", borda)
 bordaGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, corRoxo),
@@ -128,7 +204,7 @@ bordaGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(1, corRoxo)
 })
 
--- ==================== PARTÍCULAS ====================
+-- PARTÍCULAS GUI
 for i = 1, 30 do
     local particle = Instance.new("Frame", main)
     particle.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
@@ -160,14 +236,13 @@ for i = 1, 30 do
     end)
 end
 
--- ==================== CABEÇALHO ====================
+-- CABEÇALHO
 local header = Instance.new("Frame", main)
 header.Size = UDim2.new(1, 0, 0, 45)
 header.BackgroundColor3 = corRoxoEscuro
 header.BackgroundTransparency = 0.2
 Instance.new("UICorner", header).CornerRadius = UDim.new(0, 20, 0, 0)
 
--- TÍTULO
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(1, -50, 0.6, 0)
 title.Position = UDim2.new(0, 5, 0, 2)
@@ -179,7 +254,6 @@ title.Font = Enum.Font.GothamBold
 title.TextYAlignment = Enum.TextYAlignment.Bottom
 title.TextXAlignment = Enum.TextXAlignment.Left
 
--- SUBTÍTULO
 local subTitle = Instance.new("TextLabel", header)
 subTitle.Size = UDim2.new(1, -50, 0.4, 0)
 subTitle.Position = UDim2.new(0, 5, 0, 24)
@@ -191,7 +265,7 @@ subTitle.Font = Enum.Font.Gotham
 subTitle.TextXAlignment = Enum.TextXAlignment.Left
 subTitle.TextYAlignment = Enum.TextYAlignment.Top
 
--- ==================== BOTÃO MINIMIZAR ====================
+-- BOTÃO MINIMIZAR
 local minimizarBtn = Instance.new("TextButton", header)
 minimizarBtn.Size = UDim2.new(0, 26, 0, 26)
 minimizarBtn.Position = UDim2.new(1, -32, 0.5, -13)
@@ -230,13 +304,12 @@ minimizarBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ==================== LINHA DECORATIVA ====================
+-- LINHA DECORATIVA
 local linha = Instance.new("Frame", main)
 linha.Size = UDim2.new(0.8, 0, 0, 1.5)
 linha.Position = UDim2.new(0.1, 0, 0, 52)
 linha.BackgroundColor3 = corRoxoClaro
 linha.BackgroundTransparency = 0.3
-
 local linhaGrad = Instance.new("UIGradient", linha)
 linhaGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, corRoxoEscuro),
@@ -244,7 +317,7 @@ linhaGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(1, corRoxoEscuro)
 })
 
--- ==================== BOTÃO SALVAR ====================
+-- BOTÕES SALVAR / TELEPORTAR
 local saveBtn = Instance.new("TextButton", main)
 saveBtn.Size = UDim2.new(0.8, 0, 0, 34)
 saveBtn.Position = UDim2.new(0.1, 0, 0, 62)
@@ -279,7 +352,6 @@ saveBtn.MouseLeave:Connect(function()
     ts:Create(saveGlow, TweenInfo.new(0.1), {Transparency = 0.5}):Play()
 end)
 
--- ==================== BOTÃO TELEPORTAR ====================
 local tpBtn = Instance.new("TextButton", main)
 tpBtn.Size = UDim2.new(0.8, 0, 0, 34)
 tpBtn.Position = UDim2.new(0.1, 0, 0, 104)
@@ -319,7 +391,7 @@ tpBtn.MouseLeave:Connect(function()
     end
 end)
 
--- ==================== STATUS ====================
+-- STATUS / COOLDOWN / BARRA / LUZ
 local status = Instance.new("TextLabel", main)
 status.Size = UDim2.new(0.9, 0, 0, 20)
 status.Position = UDim2.new(0.05, 0, 0, 152)
@@ -331,7 +403,6 @@ status.Font = Enum.Font.Gotham
 status.TextXAlignment = Enum.TextXAlignment.Center
 status.Parent = main
 
--- ==================== COOLDOWN ====================
 local cooldownText = Instance.new("TextLabel", main)
 cooldownText.Size = UDim2.new(0.9, 0, 0, 16)
 cooldownText.Position = UDim2.new(0.05, 0, 0, 174)
@@ -343,7 +414,6 @@ cooldownText.Font = Enum.Font.Gotham
 cooldownText.TextXAlignment = Enum.TextXAlignment.Center
 cooldownText.Parent = main
 
--- ==================== BARRA DE PROGRESSO ====================
 local barraBg = Instance.new("Frame", main)
 barraBg.Size = UDim2.new(0.8, 0, 0, 3)
 barraBg.Position = UDim2.new(0.1, 0, 0, 200)
@@ -358,7 +428,6 @@ barra.BackgroundColor3 = corRoxo
 barra.BackgroundTransparency = 0.5
 Instance.new("UICorner", barra).CornerRadius = UDim.new(1, 0)
 
--- ==================== INDICADOR DE STATUS (luzinha) ====================
 local luz = Instance.new("Frame", main)
 luz.Size = UDim2.new(0, 8, 0, 8)
 luz.Position = UDim2.new(0.05, 0, 0, 152)
@@ -367,7 +436,7 @@ luz.BackgroundTransparency = 0.3
 luz.BorderSizePixel = 0
 Instance.new("UICorner", luz).CornerRadius = UDim.new(1, 0)
 
--- ==================== NOTIFICAÇÃO ====================
+-- NOTIFICAÇÃO / BOTÕES
 local notificacao = Instance.new("Frame")
 notificacao.Size = UDim2.new(0, 280, 0, 110)
 notificacao.Position = UDim2.new(0.5, -140, 0, -120)
@@ -377,7 +446,6 @@ notificacao.BorderSizePixel = 0
 notificacao.Visible = false
 notificacao.Parent = gui
 notificacao.ClipsDescendants = true
-
 Instance.new("UICorner", notificacao).CornerRadius = UDim.new(0, 25)
 local notifStroke = Instance.new("UIStroke", notificacao)
 notifStroke.Thickness = 1.5
@@ -413,7 +481,6 @@ notifSub.TextSize = 11
 notifSub.Font = Enum.Font.Gotham
 notifSub.TextXAlignment = Enum.TextXAlignment.Left
 
--- ==================== BOTÕES DA NOTIFICAÇÃO ====================
 local marcarAgoraBtn = Instance.new("TextButton", notificacao)
 marcarAgoraBtn.Size = UDim2.new(0, 120, 0, 35)
 marcarAgoraBtn.Position = UDim2.new(0.05, 0, 1, -42)
@@ -436,7 +503,7 @@ marcarDedoBtn.TextSize = 13
 marcarDedoBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", marcarDedoBtn).CornerRadius = UDim.new(0, 17)
 
--- ==================== FUNÇÕES ====================
+-- FUNÇÕES DE NOTIFICAÇÃO / MARCAR
 local function mostrarNotificacao()
     notificacao.Visible = true
     notificacao.Position = UDim2.new(0.5, -140, 0, -120)
@@ -457,7 +524,6 @@ local function esconderNotificacao()
     end)
 end
 
--- ==================== MARCAR POSIÇÃO ====================
 local function marcarPosicao(pos)
     if not pos then return end
     posSalva = pos
@@ -478,11 +544,13 @@ local function marcarPosicao(pos)
     local light = Instance.new("PointLight", marcador)
     light.Range = 7
     light.Color = corRoxo
-    
-    local bill = Instance.new("BillboardGui", marcador)
+
+    local bill = Instance.new("BillboardGui")
     bill.Size = UDim2.new(0, 70, 0, 22)
     bill.StudsOffset = Vector3.new(0, 1.8, 0)
     bill.AlwaysOnTop = true
+    bill.Adornee = marcador
+    bill.Parent = gui
     local txt = Instance.new("TextLabel", bill)
     txt.Size = UDim2.new(1, 0, 1, 0)
     txt.BackgroundTransparency = 1
@@ -514,7 +582,6 @@ local function marcarPosicao(pos)
     end)
 end
 
--- ==================== MARCAR AGORA ====================
 local function marcarAgora()
     esconderNotificacao()
     local char = player.Character
@@ -526,7 +593,6 @@ local function marcarAgora()
     end
 end
 
--- ==================== MARCAR A DEDO ====================
 local function ativarModoDedo()
     esconderNotificacao()
     modoDedo = true
@@ -542,56 +608,4 @@ local function ativarModoDedo()
         local pos = nil
         if input.UserInputType == Enum.UserInputType.Touch then
             local touchPos = input.Position
-            local ray = workspace.CurrentCamera:ViewportPointToRay(touchPos.X, touchPos.Y)
-            local params = RaycastParams.new()
-            params.FilterType = Enum.RaycastFilterType.Blacklist
-            params.FilterDescendantsInstances = {player.Character}
-            local result = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
-            if result then
-                pos = result.Position
-            end
-        elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-            local mouse = player:GetMouse()
-            if mouse and mouse.Target and mouse.Target:IsA("BasePart") then
-                pos = mouse.Target.Position
-            end
-        end
-        
-        if pos then
-            marcarPosicao(pos)
-            modoDedo = false
-            if dedoConn then
-                dedoConn:Disconnect()
-                dedoConn = nil
-            end
-            status.Text = "📍 TP pronto"
-            status.TextColor3 = corCinza
-            luz.BackgroundColor3 = corRoxo
-        end
-    end)
-    
-    task.delay(10, function()
-        if modoDedo then
-            modoDedo = false
-            if dedoConn then
-                dedoConn:Disconnect()
-                dedoConn = nil
-            end
-            status.Text = "⏰ Expirado"
-            status.TextColor3 = corVermelho
-            luz.BackgroundColor3 = corVermelho
-            task.delay(1, function()
-                status.Text = "📍 TP pronto"
-                status.TextColor3 = corCinza
-                luz.BackgroundColor3 = corRoxo
-            end)
-        end
-    end)
-end
-
--- ==================== TP GRADUAL ====================
-local function teleportarGradual(alvo)
-    if tpAtivo then return end
-    if tpCooldown then return end
-    
-    if not temChao(alvo) and alvo.Y < 0 then
+            local ray = workspace.CurrentCamera:ViewportPointToRay(t
